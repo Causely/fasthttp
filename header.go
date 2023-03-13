@@ -483,6 +483,7 @@ func (h *ResponseHeader) AddTrailer(trailer string) error {
 }
 
 var ErrBadTrailer = errors.New("contain forbidden trailer")
+var ErrParsing = errors.New("generic parsing error")
 
 // AddTrailerBytes add Trailer header value for chunked response
 // to indicate which headers will be sent after the body.
@@ -2093,10 +2094,7 @@ func headerError(typ string, err, errParse error, b []byte, secureErrorLogMessag
 }
 
 func headerErrorMsg(typ string, err error, b []byte, secureErrorLogMessage bool) error {
-	if secureErrorLogMessage {
-		return fmt.Errorf("error when reading %s headers: %w. Buffer size=%d", typ, err, len(b))
-	}
-	return fmt.Errorf("error when reading %s headers: %w. Buffer size=%d, contents: %s", typ, err, len(b), bufferSnippet(b))
+	return ErrParsing
 }
 
 // Read reads request header from r.
@@ -2699,9 +2697,9 @@ func (h *ResponseHeader) parseFirstLine(buf []byte) (int, error) {
 	n := bytes.IndexByte(b, ' ')
 	if n < 0 {
 		if h.secureErrorLogMessage {
-			return 0, fmt.Errorf("cannot find whitespace in the first line of response")
+			return 0, ErrParsing
 		}
-		return 0, fmt.Errorf("cannot find whitespace in the first line of response %q", buf)
+		return 0, ErrParsing
 	}
 	h.noHTTP11 = !bytes.Equal(b[:n], strHTTP11)
 	b = b[n+1:]
@@ -2710,15 +2708,15 @@ func (h *ResponseHeader) parseFirstLine(buf []byte) (int, error) {
 	h.statusCode, n, err = parseUintBuf(b)
 	if err != nil {
 		if h.secureErrorLogMessage {
-			return 0, fmt.Errorf("cannot parse response status code: %w", err)
+			return 0, ErrParsing
 		}
-		return 0, fmt.Errorf("cannot parse response status code: %w. Response %q", err, buf)
+		return 0, ErrParsing
 	}
 	if len(b) > n && b[n] != ' ' {
 		if h.secureErrorLogMessage {
-			return 0, fmt.Errorf("unexpected char at the end of status code")
+			return 0, ErrParsing
 		}
-		return 0, fmt.Errorf("unexpected char at the end of status code. Response %q", buf)
+		return 0, ErrParsing
 	}
 	if len(b) > n+1 {
 		h.SetStatusMessage(b[n+1:])
